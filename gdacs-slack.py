@@ -4,7 +4,7 @@ import os
 import requests
 from datetime import datetime, timedelta
 
-SLACK_WEBHOOK_URL = os.environ['SLACK_WEBHOOK_URL']
+SLACK_WEBHOOK_URL = os.environ['https://hooks.slack.com/triggers/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']
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
 GITHUB_REPO = os.environ['GITHUB_REPOSITORY']  # automatically set by Actions as "owner/repo"
 
