@@ -26,4 +26,4 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python gdacs_alerts.py
+        run: python gdacs-slack.py
