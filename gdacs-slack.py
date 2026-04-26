@@ -89,7 +89,7 @@ def write_job_summary(all_events, last_id, gdacs_error=None, raw_fields=None):
 
 fromdate = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).strftime('%Y-%m-%d')
 params = {
-    'alertlevel': 'orange;red',
+    'alertlevel': 'orange',
     'fromdate': fromdate
 }
 
@@ -99,6 +99,7 @@ last_id = get_last_event_id()
 print(f"Last known Event ID: {last_id}")
 
 resp = requests.get(API_URL, params=params)
+print(f"Full request URL: {resp.url}")
 print(f"GDACS API response: HTTP {resp.status_code}")
 
 if resp.status_code != 200:
