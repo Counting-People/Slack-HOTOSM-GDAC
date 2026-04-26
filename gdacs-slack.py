@@ -1,40 +1,31 @@
-# gdacs-slack.py
-# Attempt to read GDAC Server and add disaster alerts to HOTOSM slack channel #disasdter-alerts
 import os
 import requests
 from datetime import datetime, timedelta
 
 SLACK_WEBHOOK_URL = os.environ['SLACK_WEBHOOK_URL']
-GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
-GITHUB_REPO = os.environ['GITHUB_REPOSITORY']
 
 API_URL = 'https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH'
-GH_VARS_URL = f'https://api.github.com/repos/{GITHUB_REPO}/actions/variables/LAST_EVENT_ID'
-GH_HEADERS = {
-    'Authorization': f'Bearer {GITHUB_TOKEN}',
-    'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28'
-}
+STATE_FILE = 'last_event_id.txt'
 
-LOOKBACK_DAYS = 30  # temporarily widened from 7 to catch more events for debugging
+LOOKBACK_DAYS = 30  # widened for debugging; change back to 7 once confirmed working
 
 def get_last_event_id():
-    r = requests.get(GH_VARS_URL, headers=GH_HEADERS)
-    print(f"GET variable response: HTTP {r.status_code} - {r.text[:200]}")
-    if r.status_code == 200:
-        return int(r.json()['value'])
-    return 0  # variable doesn't exist yet on first run
+    try:
+        with open(STATE_FILE, 'r') as f:
+            value = int(f.read().strip())
+            print(f"Read last event ID from file: {value}")
+            return value
+    except FileNotFoundError:
+        print("State file not found — first run, defaulting to 0")
+        return 0
+    except Exception as e:
+        print(f"Error reading state file: {e} — defaulting to 0")
+        return 0
 
 def save_last_event_id(eventid):
-    r = requests.patch(GH_VARS_URL, headers=GH_HEADERS, json={'name': 'LAST_EVENT_ID', 'value': str(eventid)})
-    print(f"PATCH variable response: HTTP {r.status_code} - {r.text[:200]}")
-    if r.status_code == 404:
-        r2 = requests.post(
-            f'https://api.github.com/repos/{GITHUB_REPO}/actions/variables',
-            headers=GH_HEADERS,
-            json={'name': 'LAST_EVENT_ID', 'value': str(eventid)}
-        )
-        print(f"POST variable response: HTTP {r2.status_code} - {r2.text[:200]}")
+    with open(STATE_FILE, 'w') as f:
+        f.write(str(eventid))
+    print(f"Saved last event ID to file: {eventid}")
 
 def post_to_slack(event):
     alert = event['AlertLevel'].upper()
@@ -77,7 +68,6 @@ def write_job_summary(all_events, last_id, gdacs_error=None, raw_fields=None):
                 level = event['AlertLevel'].upper()
                 emoji = "🔴" if level == "RED" else "🟠"
 
-                # Show all date-related fields to identify which one GDACS uses
                 date_fields = {k: v for k, v in event.items() if 'date' in k.lower() or 'time' in k.lower()}
                 date_str = ", ".join(f"{k}: {v}" for k, v in date_fields.items()) or "none found"
 
@@ -88,7 +78,6 @@ def write_job_summary(all_events, last_id, gdacs_error=None, raw_fields=None):
 
                 f.write(f"| {event['EventId']} | {event['Name']} | {event['Country']} | {emoji} {level} | {date_str} | {slack_status} |\n")
 
-        # Show all field names and values from the first event
         if raw_fields:
             f.write("\n### Raw fields returned by GDACS API (first event)\n\n")
             f.write("```\n")
@@ -105,7 +94,6 @@ params = {
 }
 
 print(f"Querying GDACS API with fromdate={fromdate} (lookback={LOOKBACK_DAYS} days)")
-print(f"GitHub repo: {GITHUB_REPO}")
 
 last_id = get_last_event_id()
 print(f"Last known Event ID: {last_id}")
@@ -122,7 +110,6 @@ else:
     all_events = data.get('Events', [])
     print(f"GDACS returned {len(all_events)} orange/red alert(s)")
 
-    # Debug: print all fields from the first event
     raw_fields = None
     if all_events:
         print("Sample event (first result):")
