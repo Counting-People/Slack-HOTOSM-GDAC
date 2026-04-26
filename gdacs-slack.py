@@ -1,3 +1,4 @@
+## read the GDACS Alert URL and post new Orange or Red alerts to the HOT Slack channel #disaster-alerts
 import os
 import requests
 from datetime import datetime, timedelta
@@ -27,21 +28,23 @@ def save_last_event_id(eventid):
         f.write(str(eventid))
     print(f"Saved last event ID to file: {eventid}")
 
-def post_to_slack(event):
-    alert = event['AlertLevel'].upper()
+def post_to_slack(props):
+    alert = props['alertlevel'].upper()
     emoji = ':red_circle:' if alert == 'RED' else ':large_orange_circle:'
     text = (
-        f"{emoji} *GDACS {alert} Alert: {event['Name']}*\n"
-        f"*Country:* {event['Country']}\n"
-        f"*Event ID:* {event['EventId']}\n"
-        f"*Details:* {event['Description'][:200]}\n"
-        f"*More info:* https://www.gdacs.org/report.aspx?eventid={event['EventId']}"
+        f"{emoji} *GDACS {alert} Alert: {props['name']}*\n"
+        f"*Country:* {props['country']}\n"
+        f"*Event ID:* {props['eventid']}\n"
+        f"*From:* {props.get('fromdate', 'unknown')[:10]}  *To:* {props.get('todate', 'unknown')[:10]}\n"
+        f"*Last updated:* {props.get('datemodified', 'unknown')[:10]}\n"
+        f"*Details:* {props['description'][:200]}\n"
+        f"*More info:* https://www.gdacs.org/report.aspx?eventid={props['eventid']}&episodeid={props.get('episodeid', '')}&eventtype={props.get('eventtype', '')}"
     )
     r = requests.post(SLACK_WEBHOOK_URL, json={"text": text})
-    print(f"Slack response for Event ID {event['EventId']}: HTTP {r.status_code} - {r.text[:200]}")
+    print(f"Slack response for Event ID {props['eventid']}: HTTP {r.status_code} - {r.text[:200]}")
     return r.status_code
 
-def write_job_summary(all_events, last_id, gdacs_error=None, raw_fields=None):
+def write_job_summary(all_features, last_id, gdacs_error=None, raw_fields=None):
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
@@ -56,30 +59,31 @@ def write_job_summary(all_events, last_id, gdacs_error=None, raw_fields=None):
             f.write(f"⚠️ **GDACS API error:** {gdacs_error}\n")
             return
 
-        if not all_events:
+        if not all_features:
             f.write("No orange or red alerts returned by GDACS API.\n")
         else:
-            f.write(f"**{len(all_events)} orange/red alert(s) found in GDACS:**\n\n")
-            f.write("| Event ID | Title | Country | Level | Event Date Fields | Posted to Slack |\n")
-            f.write("|----------|-------|---------|-------|-------------------|-----------------|\n")
+            f.write(f"**{len(all_features)} orange/red alert(s) found in GDACS:**\n\n")
+            f.write("| Event ID | Title | Country | Level | From | To | Last Updated | Posted to Slack |\n")
+            f.write("|----------|-------|---------|-------|------|----|--------------|----------------|\n")
 
-            for event in all_events:
-                event_id = int(event['EventId'])
-                level = event['AlertLevel'].upper()
+            for feature in all_features:
+                props = feature['properties']
+                event_id = int(props['eventid'])
+                level = props['alertlevel'].upper()
                 emoji = "🔴" if level == "RED" else "🟠"
-
-                date_fields = {k: v for k, v in event.items() if 'date' in k.lower() or 'time' in k.lower()}
-                date_str = ", ".join(f"{k}: {v}" for k, v in date_fields.items()) or "none found"
+                fromdate = props.get('fromdate', '')[:10]
+                todate = props.get('todate', '')[:10]
+                datemodified = props.get('datemodified', '')[:10]
 
                 if event_id > last_id:
-                    slack_status = f"✅ Posted (HTTP {event.get('slack_status', '?')})"
+                    slack_status = f"✅ Posted (HTTP {props.get('slack_status', '?')})"
                 else:
                     slack_status = "⏭️ Skipped (already seen)"
 
-                f.write(f"| {event['EventId']} | {event['Name']} | {event['Country']} | {emoji} {level} | {date_str} | {slack_status} |\n")
+                f.write(f"| {props['eventid']} | {props['name']} | {props['country']} | {emoji} {level} | {fromdate} | {todate} | {datemodified} | {slack_status} |\n")
 
         if raw_fields:
-            f.write("\n### Raw fields returned by GDACS API (first event)\n\n")
+            f.write("\n### Raw fields returned by GDACS API (first event properties)\n\n")
             f.write("```\n")
             for k, v in raw_fields.items():
                 f.write(f"{k}: {v}\n")
@@ -89,7 +93,7 @@ def write_job_summary(all_events, last_id, gdacs_error=None, raw_fields=None):
 
 fromdate = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).strftime('%Y-%m-%d')
 params = {
-    'alertlevel': 'orange',
+    'alertlevel': 'orange;red',
     'fromdate': fromdate
 }
 
@@ -99,8 +103,8 @@ last_id = get_last_event_id()
 print(f"Last known Event ID: {last_id}")
 
 resp = requests.get(API_URL, params=params)
-print(f"Full request URL: {resp.url}")
 print(f"GDACS API response: HTTP {resp.status_code}")
+print(f"Full request URL: {resp.url}")
 
 if resp.status_code != 200:
     error_msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -108,29 +112,31 @@ if resp.status_code != 200:
     write_job_summary([], last_id, gdacs_error=error_msg)
 else:
     data = resp.json()
-    all_events = data.get('Events', [])
-    print(f"GDACS returned {len(all_events)} orange/red alert(s)")
+    all_features = data.get('features', [])
+    print(f"GDACS returned {len(all_features)} orange/red alert(s)")
 
+    # Debug: print all properties from the first event
     raw_fields = None
-    if all_events:
-        print("Sample event (first result):")
-        for k, v in all_events[0].items():
+    if all_features:
+        print("Sample event properties (first result):")
+        for k, v in all_features[0]['properties'].items():
             print(f"  {k}: {v}")
-        raw_fields = all_events[0]
+        raw_fields = all_features[0]['properties']
 
     new_count = 0
-    if all_events:
-        latest_id = max(int(e['EventId']) for e in all_events)
+    if all_features:
+        latest_id = max(int(f['properties']['eventid']) for f in all_features)
         print(f"Highest Event ID in results: {latest_id}")
-        new_events = [e for e in all_events if int(e['EventId']) > last_id]
-        print(f"Events with ID > {last_id}: {len(new_events)}")
+        new_features = [f for f in all_features if int(f['properties']['eventid']) > last_id]
+        print(f"Events with ID > {last_id}: {len(new_features)}")
 
-        for event in new_events:
-            status = post_to_slack(event)
-            event['slack_status'] = status
+        for feature in new_features:
+            props = feature['properties']
+            status = post_to_slack(props)
+            props['slack_status'] = status
             new_count += 1
 
         save_last_event_id(latest_id)
 
     print(f"New alerts posted to Slack: {new_count}")
-    write_job_summary(all_events, last_id, raw_fields=raw_fields)
+    write_job_summary(all_features, last_id, raw_fields=raw_fields)
