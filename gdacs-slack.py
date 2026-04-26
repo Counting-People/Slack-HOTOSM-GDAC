@@ -115,7 +115,6 @@ else:
     all_features = data.get('features', [])
     print(f"GDACS returned {len(all_features)} orange/red alert(s)")
 
-    # Debug: print all properties from the first event
     raw_fields = None
     if all_features:
         print("Sample event properties (first result):")
