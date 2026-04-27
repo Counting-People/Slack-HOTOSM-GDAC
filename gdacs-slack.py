@@ -1,18 +1,20 @@
 import requests
 import json
 import os
+import xml.etree.ElementTree as ET
 
-# GDACS RSS Feed URL (Orange and Red alerts)
+# GDACS RSS Feed URL
 GDACS_URL = "https://www.gdacs.org/xml/rss.xml"
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
 def get_gdacs_alerts():
-    """Fetches alerts from GDACS RSS feed."""
     try:
-        import xml.etree.ElementTree as ET
         response = requests.get(GDACS_URL)
         response.raise_for_status()
         root = ET.fromstring(response.content)
+        
+        # Namespace mapping for GDACS tags
+        ns = {'gdacs': 'http://www.gdacs.org'}
         
         alerts = []
         for item in root.findall(".//item"):
@@ -20,11 +22,10 @@ def get_gdacs_alerts():
                 "title": item.find("title").text,
                 "description": item.find("description").text,
                 "link": item.find("link").text,
-                "country": item.find("{http://www.gdacs.org}country").text if item.find("{http://www.gdacs.org}country") is not None else "Unknown",
-                "event_id": item.find("{http://www.gdacs.org}eventid").text if item.find("{http://www.gdacs.org}eventid") is not None else "N/A",
-                "alert_level": item.find("{http://www.gdacs.org}alertlevel").text if item.find("{http://www.gdacs.org}alertlevel") is not None else "Green"
+                "country": item.find("gdacs:country", ns).text if item.find("gdacs:country", ns) is not None else "Unknown",
+                "event_id": item.find("gdacs:eventid", ns).text if item.find("gdacs:eventid", ns) is not None else "N/A",
+                "alert_level": item.find("gdacs:alertlevel", ns).text if item.find("gdacs:alertlevel", ns) is not None else "Green"
             }
-            # We focus on Orange and Red for this workflow
             if alert["alert_level"].upper() in ["ORANGE", "RED"]:
                 alerts.append(alert)
         return alerts
@@ -33,10 +34,11 @@ def get_gdacs_alerts():
         return []
 
 def send_to_slack(alert):
-    """Sends a formatted Block Kit message to Slack."""
     emoji = ":red_circle:" if alert["alert_level"].upper() == "RED" else ":large_orange_circle:"
     
+    # Constructing the Block Kit payload
     payload = {
+        "text": f"GDACS Alert: {alert['title']}", # Fallback text for notifications
         "blocks": [
             {
                 "type": "header",
@@ -56,52 +58,37 @@ def send_to_slack(alert):
             {
                 "type": "section",
                 "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Country:*\n{alert['country']}"
-                    },
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Event ID:*\n{alert['event_id']}"
-                    }
+                    {"type": "mrkdwn", "text": f"*Country:*\n{alert['country']}"},
+                    {"type": "mrkdwn", "text": f"*Event ID:*\n{alert['event_id']}"}
                 ]
             },
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"*Details:*\n{alert['description']}"
+                    "text": f"*Details:*\n{alert['description'][:250]}..." # Slack limit safeguard
                 },
                 "accessory": {
                     "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "View Map",
-                        "emoji": True
-                    },
-                    "url": alert["link"],
-                    "action_id": "button-action"
+                    "text": {"type": "plain_text", "text": "View Map"},
+                    "url": alert["link"]
                 }
             },
-            {
-                "type": "divider"
-            }
+            {"type": "divider"}
         ]
     }
 
-    print(f"DEBUG PAYLOAD: {alert['title']}") # Keep simple logs for GitHub Actions
-    response = requests.post(
-        SLACK_WEBHOOK_URL, 
-        data=json.dumps(payload),
-        headers={'Content-Type': 'application/json'}
-    )
+    # CRITICAL: Use json=payload to ensure correct Content-Type and encoding
+    response = requests.post(SLACK_WEBHOOK_URL, json=payload)
     
     if response.status_code != 200:
-        print(f"Error sending to Slack: {response.status_code}, {response.text}")
+        print(f"DEBUG: Failed to send {alert['event_id']}. Status: {response.status_code}, Response: {response.text}")
+    else:
+        print(f"DEBUG PAYLOAD SENT: {alert['title']}")
 
 if __name__ == "__main__":
     if not SLACK_WEBHOOK_URL:
-        print("Error: SLACK_WEBHOOK_URL environment variable not set.")
+        print("Error: SLACK_WEBHOOK_URL not found.")
     else:
         alerts = get_gdacs_alerts()
         for alert in alerts:
