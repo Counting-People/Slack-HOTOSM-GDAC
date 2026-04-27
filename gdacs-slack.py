@@ -31,15 +31,19 @@ def save_last_event_id(eventid):
 def post_to_slack(props):
     alert = props['alertlevel'].upper()
     emoji = ':red_circle:' if alert == 'RED' else ':large_orange_circle:'
+    # Use .get() with a fallback string so the message never looks 'empty'
+    alert_name = props.get('name', 'Unknown Event')
+    country = props.get('country', 'Unknown Location')
+    event_id = props.get('eventid', 'N/A')
+    description = props.get('description', 'No details provided')
+
     text = (
-        f"{emoji} *GDACS {alert} Alert: {props['name']}*\n"
-        f"*Country:* {props['country']}\n"
-        f"*Event ID:* {props['eventid']}\n"
-        f"*From:* {props.get('fromdate', 'unknown')[:10]}  *To:* {props.get('todate', 'unknown')[:10]}\n"
-        f"*Last updated:* {props.get('datemodified', 'unknown')[:10]}\n"
-        f"*Details:* {props['description'][:200]}\n"
-        f"*More info:* https://www.gdacs.org/report.aspx?eventid={props['eventid']}&episodeid={props.get('episodeid', '')}&eventtype={props.get('eventtype', '')}"
-    )
+    f"{emoji} *GDACS {alert} Alert: {alert_name}*\n"
+    f"*Country:* {country}\n"
+    f"*Event ID:* {event_id}\n"
+    f"*Details:* {description[:200]}..."
+    )    
+    print(f"DEBUG PAYLOAD: {text}") # Check your terminal/logs for this!
     r = requests.post(SLACK_WEBHOOK_URL, json={"text": text})
     print(f"Slack response for Event ID {props['eventid']}: HTTP {r.status_code} - {r.text[:200]}")
     return r.status_code

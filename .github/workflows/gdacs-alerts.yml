@@ -2,7 +2,7 @@ name: GDACS Alert Check
 
 on:
   schedule:
-    - cron: '0 * * * *'  # every hour
+    - cron: '1 0 * * *'  # once per day just after midnight UTC
   workflow_dispatch:       # manual trigger from GitHub UI
 
 permissions:
