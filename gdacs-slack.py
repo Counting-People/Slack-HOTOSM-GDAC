@@ -1,129 +1,108 @@
-## read the GDACS Alert URL and post new Orange or Red alerts to the HOT Slack channel #disaster-alerts
-import os
 import requests
-from datetime import datetime, timedelta
+import json
+import os
 
-SLACK_WEBHOOK_URL = os.environ['SLACK_WEBHOOK_URL']
+# GDACS RSS Feed URL (Orange and Red alerts)
+GDACS_URL = "https://www.gdacs.org/xml/rss.xml"
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
-API_URL = 'https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH'
-STATE_FILE = 'last_event_id.txt'
-
-LOOKBACK_DAYS = 7  # 24 hour lookback window
-
-def get_last_event_id():
+def get_gdacs_alerts():
+    """Fetches alerts from GDACS RSS feed."""
     try:
-        with open(STATE_FILE, 'r') as f:
-            value = int(f.read().strip())
-            # print(f"Read last event ID from file: {value}")
-            return value
-    except FileNotFoundError:
-        # print("State file not found — first run, defaulting to 0")
-        return 0
+        import xml.etree.ElementTree as ET
+        response = requests.get(GDACS_URL)
+        response.raise_for_status()
+        root = ET.fromstring(response.content)
+        
+        alerts = []
+        for item in root.findall(".//item"):
+            alert = {
+                "title": item.find("title").text,
+                "description": item.find("description").text,
+                "link": item.find("link").text,
+                "country": item.find("{http://www.gdacs.org}country").text if item.find("{http://www.gdacs.org}country") is not None else "Unknown",
+                "event_id": item.find("{http://www.gdacs.org}eventid").text if item.find("{http://www.gdacs.org}eventid") is not None else "N/A",
+                "alert_level": item.find("{http://www.gdacs.org}alertlevel").text if item.find("{http://www.gdacs.org}alertlevel") is not None else "Green"
+            }
+            # We focus on Orange and Red for this workflow
+            if alert["alert_level"].upper() in ["ORANGE", "RED"]:
+                alerts.append(alert)
+        return alerts
     except Exception as e:
-        # print(f"Error reading state file: {e} — defaulting to 0")
-        return 0
+        print(f"Error fetching GDACS data: {e}")
+        return []
 
-def save_last_event_id(eventid):
-    with open(STATE_FILE, 'w') as f:
-        f.write(str(eventid))
-    # print(f"Saved last event ID to file: {eventid}")
+def send_to_slack(alert):
+    """Sends a formatted Block Kit message to Slack."""
+    emoji = ":red_circle:" if alert["alert_level"].upper() == "RED" else ":large_orange_circle:"
+    
+    payload = {
+        "blocks": [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"{emoji} GDACS {alert['alert_level'].upper()} Alert",
+                    "emoji": True
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*{alert['title']}*"
+                }
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Country:*\n{alert['country']}"
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Event ID:*\n{alert['event_id']}"
+                    }
+                ]
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Details:*\n{alert['description']}"
+                },
+                "accessory": {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "View Map",
+                        "emoji": True
+                    },
+                    "url": alert["link"],
+                    "action_id": "button-action"
+                }
+            },
+            {
+                "type": "divider"
+            }
+        ]
+    }
 
-def post_to_slack(props):
-    alert = props['alertlevel'].upper()
-    emoji = ':red_circle:' if alert == 'RED' else ':large_orange_circle:'
-    # Use .get() with a fallback string so the message never looks 'empty'
-    alert_name = props.get('name', 'Unknown Event')
-    country = props.get('country', 'Unknown Location')
-    event_id = props.get('eventid', 'N/A')
-    description = props.get('description', 'No details provided')
+    print(f"DEBUG PAYLOAD: {alert['title']}") # Keep simple logs for GitHub Actions
+    response = requests.post(
+        SLACK_WEBHOOK_URL, 
+        data=json.dumps(payload),
+        headers={'Content-Type': 'application/json'}
+    )
+    
+    if response.status_code != 200:
+        print(f"Error sending to Slack: {response.status_code}, {response.text}")
 
-    text = (
-    f"{emoji} *GDACS {alert} Alert: {alert_name}*\n"
-    f"*Country:* {country}\n"
-    f"*Event ID:* {event_id}\n"
-    f"*Details:* {description[:200]}..."
-    )    
-    print(f"DEBUG PAYLOAD: {text}") # Check your terminal/logs for this!
-    r = requests.post(SLACK_WEBHOOK_URL, json={"text": text})
-    # print(f"Slack response for Event ID {props['eventid']}: HTTP {r.status_code} - {r.text[:200]}")
-    return r.status_code
-
-def write_job_summary(all_features, last_id, gdacs_error=None, raw_fields=None):
-    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not summary_path:
-        return
-
-    with open(summary_path, "a") as f:
-        f.write("## GDACS Alert Check Results\n\n")
-        f.write(f"**Run time:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}  \n")
-        f.write(f"**Lookback window:** {LOOKBACK_DAYS} days  \n")
-        f.write(f"**Last known Event ID (before this run):** {last_id}  \n\n")
-
-        if gdacs_error:
-            f.write(f"⚠️ **GDACS API error:** {gdacs_error}\n")
-            return
-
-        if not all_features:
-            f.write("No orange or red alerts returned by GDACS API.\n")
-        else:
-            f.write(f"**{len(all_features)} orange/red alert(s) found in GDACS:**\n\n")
-            f.write("| Event ID | Title | Country | Level | From | To | Last Updated | Posted to Slack |\n")
-            f.write("|----------|-------|---------|-------|------|----|--------------|----------------|\n")
-
-            for feature in all_features:
-                props = feature['properties']
-                event_id = int(props['eventid'])
-                level = props['alertlevel'].upper()
-                emoji = "🔴" if level == "RED" else "🟠"
-                fromdate = props.get('fromdate', '')[:10]
-                todate = props.get('todate', '')[:10]
-                datemodified = props.get('datemodified', '')[:10]
-
-                if event_id > last_id:
-                    slack_status = f"✅ Posted (HTTP {props.get('slack_status', '?')})"
-                else:
-                    slack_status = "⏭️ Skipped (already seen)"
-
-                f.write(f"| {props['eventid']} | {props['name']} | {props['country']} | {emoji} {level} | {fromdate} | {todate} | {datemodified} | {slack_status} |\n")
-
-# --- Main ---
-
-fromdate = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).strftime('%Y-%m-%d')
-params = {
-    'alertlevel': 'orange;red',
-    'fromdate': fromdate
-}
-
-# print(f"Querying GDACS API with fromdate={fromdate} (lookback={LOOKBACK_DAYS} days)")
-
-last_id = get_last_event_id()
-# print(f"Last known Event ID: {last_id}")
-
-resp = requests.get(API_URL, params=params)
-# print(f"GDACS API response: HTTP {resp.status_code}")
-# print(f"Full request URL: {resp.url}")
-
-if resp.status_code != 200:
-    error_msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
-    write_job_summary([], last_id, gdacs_error=error_msg)
-else:
-    data = resp.json()
-    all_features = data.get('features', [])
-    # print(f"GDACS returned {len(all_features)} orange/red alert(s)")
-
-    new_count = 0
-    if all_features:
-        latest_id = max(int(f['properties']['eventid']) for f in all_features)
-        new_features = [f for f in all_features if int(f['properties']['eventid']) > last_id]
-        # print(f"Events with ID > {last_id}: {len(new_features)}")
-
-        for feature in new_features:
-            props = feature['properties']
-            status = post_to_slack(props)
-            props['slack_status'] = status
-            new_count += 1
-
-        save_last_event_id(latest_id)
-
-    # print(f"New alerts posted to Slack: {new_count}")
-    write_job_summary(all_features, last_id)
+if __name__ == "__main__":
+    if not SLACK_WEBHOOK_URL:
+        print("Error: SLACK_WEBHOOK_URL environment variable not set.")
+    else:
+        alerts = get_gdacs_alerts()
+        for alert in alerts:
+            send_to_slack(alert)
