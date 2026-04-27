@@ -22,75 +22,52 @@ def get_gdacs_alerts(last_id):
     try:
         response = requests.get(GDACS_URL, timeout=15)
         response.raise_for_status()
-        
-        # Parse the XML
         root = ET.fromstring(response.content)
         
-        # Define all possible namespaces found in GDACS RSS
-        ns = {
-            'gdacs': 'http://www.gdacs.org',
-            'geo': 'http://www.w3.org/2003/01/geo/wgs84_pos#',
-            'dc': 'http://purl.org/dc/elements/1.1/'
-        }
+        # Explicit namespace URIs used by GDACS
+        GDACS_NS = "{http://www.gdacs.org}"
         
         alerts = []
         for item in root.findall(".//item"):
-            # Robust extraction: checks for namespace, then falls back to local name
-            def find_text(tag_name):
-                # Try with namespace
-                element = item.find(f"gdacs:{tag_name}", ns)
-                if element is None:
-                    # Try without namespace
-                    element = item.find(tag_name)
-                return element.text.strip() if element is not None and element.text else ""
-
-            event_id = find_text("eventid")
-            alert_level = find_text("alertlevel")
-            country = find_text("country")
+            # Use bracketed namespace for GDACS tags
+            event_id = item.find(f"{GDACS_NS}eventid").text if item.find(f"{GDACS_NS}eventid") is not None else ""
+            alert_level = item.find(f"{GDACS_NS}alertlevel").text if item.find(f"{GDACS_NS}alertlevel") is not None else ""
+            country = item.find(f"{GDACS_NS}country").text if item.find(f"{GDACS_NS}country") is not None else "Unknown"
             
-            # Standard RSS tags don't use the gdacs namespace
-            title_el = item.find("title")
-            title = title_el.text.strip() if title_el is not None else "Unknown Event"
-            
-            link_el = item.find("link")
-            link = link_el.text.strip() if link_el is not None else ""
-            
-            desc_el = item.find("description")
-            description = desc_el.text.strip() if desc_el is not None else ""
+            # Standard tags (no namespace)
+            title = item.find("title").text if item.find("title") is not None else "Unknown Title"
+            link = item.find("link").text if item.find("link") is not None else ""
+            description = item.find("description").text if item.find("description") is not None else ""
 
-            # Debugging check: If event_id is still empty, the parser is failing
-            if not event_id:
-                continue
-
-            # Stop at the last processed ID
+            # Skip if we hit our checkpoint
             if event_id == last_id and last_id != "0":
                 break
                 
             if alert_level.upper() in ["ORANGE", "RED"]:
                 alerts.append({
-                    "title": title,
-                    "description": description,
-                    "link": link,
-                    "country": country,
-                    "event_id": event_id,
-                    "alert_level": alert_level
+                    "title": title.strip(),
+                    "description": description.strip(),
+                    "link": link.strip(),
+                    "country": country.strip(),
+                    "event_id": event_id.strip(),
+                    "alert_level": alert_level.strip()
                 })
         
-        return alerts[::-1] # Oldest to newest
+        return alerts[::-1] # Oldest first
     except Exception as e:
-        print(f"CRITICAL ERROR: {e}")
+        print(f"Error: {e}")
         return []
 
 def send_to_slack(alert):
     emoji = ":red_circle:" if alert["alert_level"].upper() == "RED" else ":large_orange_circle:"
     
-    # We use .get() or "Unknown" to ensure no empty parentheses
-    t = alert.get('title') or "Unknown Title"
-    c = alert.get('country') or "Unknown Country"
-    i = alert.get('event_id') or "No ID"
+    # Ensuring variables are strictly defined to avoid empty ()
+    title = alert['title']
+    country = alert['country']
+    eid = alert['event_id']
 
     payload = {
-        "text": f"New GDACS Alert: {t} ({c}) - ID: {i}",
+        "text": f"New GDACS Alert: {title} ({country})",
         "blocks": [
             {
                 "type": "header",
@@ -104,7 +81,7 @@ def send_to_slack(alert):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"*Event:* {t}\n*Country:* {c}\n*Event ID:* {i}"
+                    "text": f"*Event:* {title}\n*Country:* {country}\n*Event ID:* {eid}"
                 }
             },
             {
@@ -116,30 +93,29 @@ def send_to_slack(alert):
                 "accessory": {
                     "type": "button",
                     "text": {"type": "plain_text", "text": "View Details"},
-                    "url": alert["link"] or "https://www.gdacs.org"
+                    "url": alert["link"]
                 }
             }
         ]
     }
 
     response = requests.post(SLACK_WEBHOOK_URL, json=payload)
-    if response.status_code != 200:
-        print(f"SLACK ERROR: {response.status_code} - {response.text}")
+    if response.status_code == 200:
+        print(f"Successfully posted {eid}")
     else:
-        print(f"SUCCESS: Posted event {i}")
+        print(f"Slack Error {response.status_code}: {response.text}")
 
 if __name__ == "__main__":
     if not SLACK_WEBHOOK_URL:
-        print("WEBHOOK URL MISSING")
+        print("Missing Webhook URL")
     else:
         last_id = get_last_event_id()
-        print(f"Checking for alerts newer than: {last_id}")
         alerts = get_gdacs_alerts(last_id)
         
         if alerts:
             for alert in alerts:
                 send_to_slack(alert)
             save_last_event_id(alerts[-1]["event_id"])
-            print(f"Saved new last_id: {alerts[-1]['event_id']}")
         else:
+            print("No new alerts.")
             print("No new alerts found.")
