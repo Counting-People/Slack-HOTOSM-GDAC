@@ -9,14 +9,12 @@ SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 STATE_FILE = "last_event_id.txt"
 
 def get_last_event_id():
-    """Reads the last processed event ID from a local file."""
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, "r") as f:
             return f.read().strip()
     return "0"
 
 def save_last_event_id(event_id):
-    """Saves the latest processed event ID to a local file."""
     with open(STATE_FILE, "w") as f:
         f.write(str(event_id))
 
@@ -26,38 +24,46 @@ def get_gdacs_alerts(last_id):
         response.raise_for_status()
         root = ET.fromstring(response.content)
         
-        ns = {'gdacs': 'http://www.gdacs.org'}
-        alerts = []
+        # GDACS uses specific XML namespaces
+        ns = {
+            'gdacs': 'http://www.gdacs.org',
+            'geo': 'http://www.w3.org/2003/01/geo/wgs84_pos#',
+            'as': 'http://purl.org/atompub/syndication/1.0/'
+        }
         
+        alerts = []
         for item in root.findall(".//item"):
+            # Extracting with namespace handling
             event_id = item.find("gdacs:eventid", ns).text if item.find("gdacs:eventid", ns) is not None else "0"
             alert_level = item.find("gdacs:alertlevel", ns).text if item.find("gdacs:alertlevel", ns) is not None else "Green"
             
-            # Stop if we hit the last event we already processed
-            if event_id == last_id:
+            # Stop if we reach the last processed event
+            if event_id == last_id and last_id != "0":
                 break
                 
             if alert_level.upper() in ["ORANGE", "RED"]:
                 alerts.append({
                     "title": item.find("title").text,
-                    "description": item.find("description").text,
+                    "description": item.find("description").text.strip() if item.find("description") is not None else "",
                     "link": item.find("link").text,
                     "country": item.find("gdacs:country", ns).text if item.find("gdacs:country", ns) is not None else "Unknown",
                     "event_id": event_id,
                     "alert_level": alert_level
                 })
         
-        # Reverse so we process oldest to newest (to keep ID tracking logical)
-        return alerts[::-1]
+        return alerts[::-1] # Oldest to newest
     except Exception as e:
-        print(f"Error fetching GDACS data: {e}")
+        print(f"Error parsing GDACS RSS: {e}")
         return []
 
 def send_to_slack(alert):
     emoji = ":red_circle:" if alert["alert_level"].upper() == "RED" else ":large_orange_circle:"
     
+    # Clean description to prevent Slack parsing errors (max 3000 chars, but let's keep it safe at 500)
+    clean_desc = (alert['description'][:500] + '...') if len(alert['description']) > 500 else alert['description']
+
     payload = {
-        "text": f"GDACS Alert: {alert['title']}",
+        "text": f"New GDACS Alert: {alert['title']}", # Notification fallback
         "blocks": [
             {
                 "type": "header",
@@ -80,34 +86,39 @@ def send_to_slack(alert):
             },
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*Details:*\n{alert['description'][:250]}..."},
+                "text": {"type": "mrkdwn", "text": f"*Details:*\n{clean_desc}"},
                 "accessory": {
                     "type": "button",
-                    "text": {"type": "plain_text", "text": "View Map"},
+                    "text": {"type": "plain_text", "text": "View Details"},
                     "url": alert["link"]
                 }
-            },
-            {"type": "divider"}
+            }
         ]
     }
 
+    # CRITICAL: Use json= parameter to ensure correct header/encoding
     response = requests.post(SLACK_WEBHOOK_URL, json=payload)
+    
     if response.status_code != 200:
-        print(f"Error: {response.status_code}, {response.text}")
+        print(f"SLACK ERROR: {response.status_code} - {response.text}")
+        # Debug: Print the payload if it fails so you can see it in GitHub logs
+        print(f"FAILED PAYLOAD: {json.dumps(payload)}")
     else:
-        print(f"Successfully sent alert: {alert['event_id']}")
+        print(f"Successfully posted event {alert['event_id']}")
 
 if __name__ == "__main__":
     if not SLACK_WEBHOOK_URL:
-        print("Error: SLACK_WEBHOOK_URL not set.")
+        print("Missing SLACK_WEBHOOK_URL")
     else:
         last_id = get_last_event_id()
+        print(f"Checking for alerts newer than ID: {last_id}")
+        
         alerts = get_gdacs_alerts(last_id)
         
         if alerts:
             for alert in alerts:
                 send_to_slack(alert)
-            # Save the ID of the most recent alert processed
             save_last_event_id(alerts[-1]["event_id"])
+            print(f"Updated last_event_id to {alerts[-1]['event_id']}")
         else:
-            print("No new Orange/Red alerts found.")
+            print("No new alerts found.")
