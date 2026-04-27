@@ -24,46 +24,49 @@ def get_gdacs_alerts(last_id):
         response.raise_for_status()
         root = ET.fromstring(response.content)
         
-        # GDACS uses specific XML namespaces
+        # DEFINITIVE NAMESPACE MAP
         ns = {
             'gdacs': 'http://www.gdacs.org',
             'geo': 'http://www.w3.org/2003/01/geo/wgs84_pos#',
-            'as': 'http://purl.org/atompub/syndication/1.0/'
+            'dc': 'http://purl.org/dc/elements/1.1/'
         }
         
         alerts = []
         for item in root.findall(".//item"):
-            # Extracting with namespace handling
-            event_id = item.find("gdacs:eventid", ns).text if item.find("gdacs:eventid", ns) is not None else "0"
+            # Use the namespace map 'ns' for EVERY gdacs-specific tag
+            event_id = item.find("gdacs:eventid", ns).text if item.find("gdacs:eventid", ns) is not None else "UnknownID"
             alert_level = item.find("gdacs:alertlevel", ns).text if item.find("gdacs:alertlevel", ns) is not None else "Green"
+            country = item.find("gdacs:country", ns).text if item.find("gdacs:country", ns) is not None else "Unknown Country"
+            title = item.find("title").text if item.find("title") is not None else "No Title"
             
-            # Stop if we reach the last processed event
+            # Stop at the last processed ID
             if event_id == last_id and last_id != "0":
                 break
                 
             if alert_level.upper() in ["ORANGE", "RED"]:
                 alerts.append({
-                    "title": item.find("title").text,
+                    "title": title,
                     "description": item.find("description").text.strip() if item.find("description") is not None else "",
-                    "link": item.find("link").text,
-                    "country": item.find("gdacs:country", ns).text if item.find("gdacs:country", ns) is not None else "Unknown",
+                    "link": item.find("link").text if item.find("link") is not None else "",
+                    "country": country,
                     "event_id": event_id,
                     "alert_level": alert_level
                 })
         
-        return alerts[::-1] # Oldest to newest
+        return alerts[::-1] # Process oldest to newest
     except Exception as e:
-        print(f"Error parsing GDACS RSS: {e}")
+        print(f"Error parsing XML: {e}")
         return []
 
 def send_to_slack(alert):
     emoji = ":red_circle:" if alert["alert_level"].upper() == "RED" else ":large_orange_circle:"
     
-    # Clean description to prevent Slack parsing errors (max 3000 chars, but let's keep it safe at 500)
-    clean_desc = (alert['description'][:500] + '...') if len(alert['description']) > 500 else alert['description']
+    # This matches the "New GDACS Alert: () -" text you saw. 
+    # I've reinforced the variable placement here.
+    fallback_text = f"New GDACS Alert: {alert['title']} ({alert['country']}) - ID: {alert['event_id']}"
 
     payload = {
-        "text": f"New GDACS Alert: {alert['title']}", # Notification fallback
+        "text": fallback_text,
         "blocks": [
             {
                 "type": "header",
@@ -75,18 +78,17 @@ def send_to_slack(alert):
             },
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*{alert['title']}*"}
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Title:* {alert['title']}\n*Country:* {alert['country']}\n*Event ID:* {alert['event_id']}"
+                }
             },
             {
                 "type": "section",
-                "fields": [
-                    {"type": "mrkdwn", "text": f"*Country:*\n{alert['country']}"},
-                    {"type": "mrkdwn", "text": f"*Event ID:*\n{alert['event_id']}"}
-                ]
-            },
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*Details:*\n{clean_desc}"},
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Details:*\n{alert['description'][:300]}..."
+                },
                 "accessory": {
                     "type": "button",
                     "text": {"type": "plain_text", "text": "View Details"},
@@ -96,29 +98,22 @@ def send_to_slack(alert):
         ]
     }
 
-    # CRITICAL: Use json= parameter to ensure correct header/encoding
     response = requests.post(SLACK_WEBHOOK_URL, json=payload)
-    
     if response.status_code != 200:
-        print(f"SLACK ERROR: {response.status_code} - {response.text}")
-        # Debug: Print the payload if it fails so you can see it in GitHub logs
-        print(f"FAILED PAYLOAD: {json.dumps(payload)}")
+        print(f"SLACK ERROR: {response.text}")
     else:
-        print(f"Successfully posted event {alert['event_id']}")
+        print(f"SUCCESS: Posted {alert['event_id']}")
 
 if __name__ == "__main__":
     if not SLACK_WEBHOOK_URL:
-        print("Missing SLACK_WEBHOOK_URL")
+        print("WEBHOOK URL MISSING")
     else:
         last_id = get_last_event_id()
-        print(f"Checking for alerts newer than ID: {last_id}")
-        
         alerts = get_gdacs_alerts(last_id)
         
         if alerts:
             for alert in alerts:
                 send_to_slack(alert)
             save_last_event_id(alerts[-1]["event_id"])
-            print(f"Updated last_event_id to {alerts[-1]['event_id']}")
         else:
-            print("No new alerts found.")
+            print("No new Orange/Red alerts found.")
