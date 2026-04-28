@@ -25,68 +25,38 @@ def get_gdacs_alerts(last_id):
         root = ET.fromstring(response.content)
         
         alerts = []
-        # Find all items in the RSS channel
         for item in root.findall(".//item"):
-            # WILDCARD SEARCH: Finds tags regardless of namespace prefix
-            def get_tag_text(tag_name, default=""):
-                # Searches for a tag ending with the specific name (ignores namespace)
-                el = item.find(f".//{{*}}{tag_name}")
-                if el is None:
-                    # Fallback for standard tags like <title> or <link>
-                    el = item.find(tag_name)
-                return el.text.strip() if el is not None and el.text else default
+            # The most aggressive way to find tags: ignoring namespaces entirely
+            event_id = next((child.text for child in item if 'eventid' in child.tag), "0")
+            alert_level = next((child.text for child in item if 'alertlevel' in child.tag), "Green")
+            country = next((child.text for child in item if 'country' in child.tag), "Unknown")
+            title = item.findtext("title") or "No Title"
 
-            event_id = get_tag_text("eventid")
-            alert_level = get_tag_text("alertlevel", "Green")
-            country = get_tag_text("country", "Unknown")
-            title = get_tag_text("title", "No Title Found")
-            link = get_tag_text("link", "https://www.gdacs.org")
-            description = get_tag_text("description", "")
-
-            # If we hit our checkpoint, stop processing older items
             if event_id == last_id and last_id != "0":
                 break
                 
             if alert_level.upper() in ["ORANGE", "RED"]:
                 alerts.append({
-                    "title": title,
-                    "country": country,
-                    "event_id": event_id,
-                    "alert_level": alert_level,
-                    "link": link,
-                    "description": description
+                    "title": str(title).strip(),
+                    "country": str(country).strip(),
+                    "event_id": str(event_id).strip(),
+                    "alert_level": str(alert_level).strip()
                 })
         
-        return alerts[::-1] # Newest alerts last
+        return alerts[::-1]
     except Exception as e:
-        print(f"Parsing Error: {e}")
+        print(f"Error: {e}")
         return []
 
 def send_to_slack(alert):
-    emoji = ":red_circle:" if alert["alert_level"].upper() == "RED" else ":large_orange_circle:"
+    # Construct a PLAIN STRING. No blocks, no dictionaries.
+    # If this shows up as "()", it means the variables themselves are literal empty strings.
     
-    # Construct a robust message string
-    msg_body = (
-        f"{emoji} *GDACS {alert['alert_level']} Alert*\n"
-        f"*Event:* {alert['title']}\n"
-        f"*Country:* {alert['country']}\n"
-        f"*Event ID:* {alert['event_id']}"
-    )
-
-    payload = {
-        "text": f"GDACS {alert['alert_level']} Alert: {alert['title']}",
-        "blocks": [
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": msg_body},
-                "accessory": {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "View Details"},
-                    "url": alert["link"]
-                }
-            }
-        ]
-    }
+    text_output = "GDACS ALERT: " + alert['title'] + " in " + alert['country'] + " (ID: " + alert['event_id'] + ")"
+    
+    print(f"LOGGING OUTPUT STRING: {text_output}")
+    
+    payload = {"text": text_output}
 
     response = requests.post(
         SLACK_WEBHOOK_URL, 
@@ -94,22 +64,20 @@ def send_to_slack(alert):
         headers={'Content-Type': 'application/json'}
     )
     
-    if response.status_code == 200:
-        print(f"Successfully posted ID: {alert['event_id']}")
-    else:
-        print(f"Slack Error {response.status_code}: {response.text}")
+    if response.status_code != 200:
+        print(f"Slack Error: {response.text}")
 
 if __name__ == "__main__":
     if not SLACK_WEBHOOK_URL:
-        print("Error: SLACK_WEBHOOK_URL not set.")
+        print("Missing Webhook")
     else:
         last_id = get_last_event_id()
-        print(f"Checking for alerts newer than {last_id}...")
         alerts = get_gdacs_alerts(last_id)
-        
         if alerts:
             for alert in alerts:
                 send_to_slack(alert)
             save_last_event_id(alerts[-1]["event_id"])
         else:
+            print("No new alerts.")
             print("No new alerts found.")
+            
