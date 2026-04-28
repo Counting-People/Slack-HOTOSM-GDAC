@@ -8,7 +8,7 @@ SLACK_WEBHOOK_URL = os.environ['SLACK_WEBHOOK_URL']
 API_URL = 'https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH'
 STATE_FILE = 'last_event_id.txt'
 
-LOOKBACK_DAYS = 7  # 24 hour lookback window
+LOOKBACK_DAYS = 1  # 24 hour lookback window
 
 def get_last_event_id():
     try:
