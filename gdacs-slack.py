@@ -29,19 +29,14 @@ def save_last_event_id(eventid):
     # print(f"Saved last event ID to file: {eventid}")
 
 def post_to_slack(props):
-    alert = props['alertlevel'].upper()
-    emoji = ':red_circle:' if alert == 'RED' else ':large_orange_circle:'
-    text = (
-        f"{emoji} *GDACS {alert} Alert: {props['name']}*\n"
-        f"*Country:* {props['country']}\n"
-        f"*Event ID:* {props['eventid']}\n"
-        f"*From:* {props.get('fromdate', 'unknown')[:10]}  *To:* {props.get('todate', 'unknown')[:10]}\n"
-        f"*Last updated:* {props.get('datemodified', 'unknown')[:10]}\n"
-        f"*Details:* {props['description'][:200]}\n"
-        f"*More info:* https://www.gdacs.org/report.aspx?eventid={props['eventid']}&episodeid={props.get('episodeid', '')}&eventtype={props.get('eventtype', '')}"
-    )
-    r = requests.post(SLACK_WEBHOOK_URL, json={"text": text})
-    # print(f"Slack response for Event ID {props['eventid']}: HTTP {r.status_code} - {r.text[:200]}")
+    payload = {
+        "event_name": props['name'],
+        "event_id": str(props['eventid']),
+        "alert_level": props['alertlevel'],
+        "description": props['description'][:200],
+        "country": props['country']
+    }
+    r = requests.post(SLACK_WEBHOOK_URL, json=payload)
     return r.status_code
 
 def write_job_summary(all_features, last_id, gdacs_error=None, raw_fields=None):
