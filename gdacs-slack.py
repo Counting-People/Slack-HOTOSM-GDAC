@@ -1,120 +1,112 @@
-## read the GDACS Alert URL and post new Orange or Red alerts to the HOT Slack channel #disaster-alerts
-import os
 import requests
-from datetime import datetime, timedelta
+import json
+import os
 
-SLACK_WEBHOOK_URL = os.environ['SLACK_WEBHOOK_URL']
+GDACS_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH"
+SLACK_WEBHOOK_URL = os.environ["SLACK_WEBHOOK_URL"]
+GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
+GITHUB_REPO = os.environ["GITHUB_REPOSITORY"]
 
-API_URL = 'https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH'
-STATE_FILE = 'last_event_id.txt'
+ALERT_RANK = {"green": 1, "orange": 2, "red": 3}
 
-LOOKBACK_DAYS = 1  # 24 hour lookback window
 
-def get_last_event_id():
-    try:
-        with open(STATE_FILE, 'r') as f:
-            value = int(f.read().strip())
-            # print(f"Read last event ID from file: {value}")
-            return value
-    except FileNotFoundError:
-        # print("State file not found — first run, defaulting to 0")
-        return 0
-    except Exception as e:
-        # print(f"Error reading state file: {e} — defaulting to 0")
-        return 0
-
-def save_last_event_id(eventid):
-    with open(STATE_FILE, 'w') as f:
-        f.write(str(eventid))
-    # print(f"Saved last event ID to file: {eventid}")
-
-def post_to_slack(props):
-    payload = {
-        "event_name": props['name'],
-        "event_id": str(props['eventid']),
-        "alert_level": props['alertlevel'],
-        "description": props['description'][:200],
-        "country": props['country']
+def fetch_gdacs_events():
+    """Fetch all active events regardless of alert level."""
+    params = {
+        "alertlevel": "green;orange;red",
+        "limit": 100,
     }
-    r = requests.post(SLACK_WEBHOOK_URL, json=payload)
-    return r.status_code
+    response = requests.get(GDACS_URL, params=params, timeout=30)
+    response.raise_for_status()
+    return response.json().get("features", [])
 
-def write_job_summary(all_features, last_id, gdacs_error=None, raw_fields=None):
-    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not summary_path:
-        return
 
-    with open(summary_path, "a") as f:
-        f.write("## GDACS Alert Check Results\n\n")
-        f.write(f"**Run time:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}  \n")
-        f.write(f"**Lookback window:** {LOOKBACK_DAYS} days  \n")
-        f.write(f"**Last known Event ID (before this run):** {last_id}  \n\n")
+def load_state():
+    """Load stored event state dict from GitHub Actions variable."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/variables/EVENT_ALERT_STATE"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+    }
+    response = requests.get(url, headers=headers, timeout=10)
+    if response.status_code == 200:
+        try:
+            return json.loads(response.json()["value"])
+        except (json.JSONDecodeError, KeyError):
+            return {}
+    return {}
 
-        if gdacs_error:
-            f.write(f"⚠️ **GDACS API error:** {gdacs_error}\n")
-            return
 
-        if not all_features:
-            f.write("No orange or red alerts returned by GDACS API.\n")
-        else:
-            f.write(f"**{len(all_features)} orange/red alert(s) found in GDACS:**\n\n")
-            f.write("| Event ID | Title | Country | Level | From | To | Last Updated | Posted to Slack |\n")
-            f.write("|----------|-------|---------|-------|------|----|--------------|----------------|\n")
+def save_state(state: dict):
+    """Save event state dict to GitHub Actions variable (create or update)."""
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+    }
+    payload = {"name": "EVENT_ALERT_STATE", "value": json.dumps(state)}
 
-            for feature in all_features:
-                props = feature['properties']
-                event_id = int(props['eventid'])
-                level = props['alertlevel'].upper()
-                emoji = "🔴" if level == "RED" else "🟠"
-                fromdate = props.get('fromdate', '')[:10]
-                todate = props.get('todate', '')[:10]
-                datemodified = props.get('datemodified', '')[:10]
+    patch_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/variables/EVENT_ALERT_STATE"
+    r = requests.patch(patch_url, headers=headers, json=payload, timeout=10)
 
-                if event_id > last_id:
-                    slack_status = f"✅ Posted (HTTP {props.get('slack_status', '?')})"
-                else:
-                    slack_status = "⏭️ Skipped (already seen)"
+    if r.status_code == 404:
+        post_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/variables"
+        requests.post(post_url, headers=headers, json=payload, timeout=10).raise_for_status()
 
-                f.write(f"| {props['eventid']} | {props['name']} | {props['country']} | {emoji} {level} | {fromdate} | {todate} | {datemodified} | {slack_status} |\n")
 
-# --- Main ---
+def post_to_slack(event: dict, change_type: str):
+    """Post an alert to the Slack Workflow webhook."""
+    props = event["properties"]
+    level = props.get("alertlevel", "").lower()
+    emoji = ":red_circle:" if level == "red" else ":large_orange_circle:"
 
-fromdate = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).strftime('%Y-%m-%d')
-params = {
-    'alertlevel': 'orange;red',
-    'fromdate': fromdate
-}
+    payload = {
+        "event_name": props.get("name", "Unknown event"),
+        "country": props.get("country", "Unknown"),
+        "description": props.get("description", "No description available."),
+        "event_id": str(props.get("eventid", "")),
+        "alert_level": f"{emoji} {level.capitalize()}",
+        "change_type": change_type,  # "new_alert" or "escalation" — unused in Workflow Builder for now
+    }
 
-# print(f"Querying GDACS API with fromdate={fromdate} (lookback={LOOKBACK_DAYS} days)")
+    response = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=10)
+    response.raise_for_status()
 
-last_id = get_last_event_id()
-# print(f"Last known Event ID: {last_id}")
 
-resp = requests.get(API_URL, params=params)
-# print(f"GDACS API response: HTTP {resp.status_code}")
-# print(f"Full request URL: {resp.url}")
+def run():
+    events = fetch_gdacs_events()
+    stored_state = load_state()
 
-if resp.status_code != 200:
-    error_msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
-    write_job_summary([], last_id, gdacs_error=error_msg)
-else:
-    data = resp.json()
-    all_features = data.get('features', [])
-    # print(f"GDACS returned {len(all_features)} orange/red alert(s)")
+    new_state = {}
 
-    new_count = 0
-    if all_features:
-        latest_id = max(int(f['properties']['eventid']) for f in all_features)
-        new_features = [f for f in all_features if int(f['properties']['eventid']) > last_id]
-        # print(f"Events with ID > {last_id}: {len(new_features)}")
+    for event in events:
+        props = event.get("properties", {})
+        event_id = str(props.get("eventid", ""))
+        current_level = props.get("alertlevel", "").lower()
 
-        for feature in new_features:
-            props = feature['properties']
-            status = post_to_slack(props)
-            props['slack_status'] = status
-            new_count += 1
+        if not event_id or current_level not in ALERT_RANK:
+            continue
 
-        save_last_event_id(latest_id)
+        # Track all levels in state so we can detect future escalations from green
+        new_state[event_id] = current_level
 
-    # print(f"New alerts posted to Slack: {new_count}")
-    write_job_summary(all_features, last_id)
+        # Never post alerts for green events
+        if current_level == "green":
+            continue
+
+        previous_level = stored_state.get(event_id)
+
+        if previous_level is None:
+            # New orange or red event not seen before
+            post_to_slack(event, "new_alert")
+        elif ALERT_RANK.get(current_level, 0) > ALERT_RANK.get(previous_level, 0):
+            # Alert level has increased (green→orange, green→red, orange→red)
+            post_to_slack(event, "escalation")
+        # Level unchanged or decreased — no alert
+
+    save_state(new_state)
+    print(f"Done. Tracked {len(new_state)} active events.")
+
+
+if __name__ == "__main__":
+    run()
