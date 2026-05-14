@@ -24,6 +24,7 @@ jobs:
 
       - name: Run GDACS alert check
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python gdacs-slack.py
 
