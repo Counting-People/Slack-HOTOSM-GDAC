@@ -48,11 +48,13 @@ def save_state(state: dict):
 
     patch_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/variables/EVENT_ALERT_STATE"
     r = requests.patch(patch_url, headers=headers, json=payload, timeout=10)
-
+    print(f"PATCH status: {r.status_code}")  # add this
+    
     if r.status_code == 404:
         post_url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/variables"
         requests.post(post_url, headers=headers, json=payload, timeout=10).raise_for_status()
-
+        r2 = requests.post(post_url, headers=headers, json=payload, timeout=10)
+        print(f"POST status: {r2.status_code}, body: {r2.text}")  # add this
 
 def post_to_slack(event: dict, change_type: str):
     """Post an alert to the Slack Workflow webhook."""
