@@ -6,7 +6,7 @@ on:
   workflow_dispatch:       # manual trigger from GitHub UI
 
 permissions:
-  contents: write  # allows the workflow to commit the state file back to the repo
+  actions: : write  # allows the workflow to commit the state file back to the repo
   contents: read  # allows the workflow to read the state file from to the repo
 
 jobs:
