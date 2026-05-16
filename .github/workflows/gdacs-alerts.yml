@@ -34,7 +34,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           INITIAL_RUN: ${{ github.event.inputs.initial_run || 'false' }}
-        run: python gdacs_alerts.py
+        run: python gdacs-slack.py
 
       - name: Commit updated posted_events.json
         run: |
