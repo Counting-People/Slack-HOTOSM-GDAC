@@ -1,38 +1,45 @@
-name: GDACS Alert Check
+name: GDACS Alert Notifier
 
 on:
   schedule:
-    - cron: '1 0 * * *'  # once per day at a minute after midnight UTC
-  workflow_dispatch:       # manual trigger from GitHub UI
+    - cron: "1 0 * * *"   # 00:01 UTC every night
+
+  workflow_dispatch:        # Manual trigger from GitHub Actions UI
+    inputs:
+      initial_run:
+        description: "Set to 'true' to backfill all orange/red alerts from 2026-01-01"
+        required: false
+        default: "false"
 
 permissions:
-  actions: write  # allows the workflow to commit the state file back to the repo
-  contents: read  # allows the workflow to read the state file from to the repo
+  contents: write           # Required to commit posted_events.json back to the repo
 
 jobs:
-  check-alerts:
+  notify:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.12"
 
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run GDACS alert check
+      - name: Run GDACS alert notifier
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: python gdacs-slack.py
+          INITIAL_RUN: ${{ github.event.inputs.initial_run || 'false' }}
+        run: python gdacs_alerts.py
 
-      - name: Commit updated state file
+      - name: Commit updated posted_events.json
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add last_event_id.txt
-          git diff --cached --quiet || git commit -m "chore: update last event ID [skip ci]"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add posted_events.json
+          git diff --staged --quiet || git commit -m "chore: update posted_events.json [skip ci]"
           git push
