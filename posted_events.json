@@ -1,0 +1,42 @@
+[
+  {
+    "event_id": "1018431",
+    "alert_level": "Orange",
+    "event_name": "Drought in Madagascar",
+    "country": "Madagascar",
+    "fromdate": "2025-11-21T00:00:00",
+    "todate": "2026-05-14T00:00:00",
+    "datemodified": "2026-05-16T05:57:14",
+    "posted_at": "2026-05-16"
+  },
+  {
+    "event_id": "1018344",
+    "alert_level": "Orange",
+    "event_name": "Drought in Angola, Democratic Republic of Congo, Republic of Congo, Gabon, Zambia",
+    "country": "Angola, Democratic Republic of Congo, Republic of Congo, Gabon, Zambia",
+    "fromdate": "2025-12-11T00:00:00",
+    "todate": "2026-05-14T00:00:00",
+    "datemodified": "2026-05-16T05:57:11",
+    "posted_at": "2026-05-16"
+  },
+  {
+    "event_id": "1018327",
+    "alert_level": "Orange",
+    "event_name": "Drought in Argentina, Uruguay",
+    "country": "Argentina, Uruguay",
+    "fromdate": "2025-11-21T00:00:00",
+    "todate": "2026-05-14T00:00:00",
+    "datemodified": "2026-05-16T05:57:10",
+    "posted_at": "2026-05-16"
+  },
+  {
+    "event_id": "1103757",
+    "alert_level": "Orange",
+    "event_name": "Flood in Brazil",
+    "country": "Brazil",
+    "fromdate": "2026-02-03T01:00:00",
+    "todate": "2026-03-31T01:00:00",
+    "datemodified": "2026-05-12T12:15:20",
+    "posted_at": "2026-05-16"
+  }
+]
