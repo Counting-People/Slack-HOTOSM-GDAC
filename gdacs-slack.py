@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sys
+import time
 import requests
 from datetime import date
 
@@ -198,7 +199,7 @@ def main() -> None:
         # New event, or an escalation from orange to red
         try:
             post_to_slack(event)
-
+            time.sleep(1)  # stay within Slack's ~1 message/sec rate limit
             record = {
                 "event_id":     event["event_id"],
                 "alert_level":  event["alert_level"],
