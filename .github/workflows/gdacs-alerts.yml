@@ -20,10 +20,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -34,7 +34,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           INITIAL_RUN: ${{ github.event.inputs.initial_run || 'false' }}
-        run: python gdacs_alerts.py
+        run: python gdacs-slack.py
 
       - name: Commit updated posted_events.json
         if: always()
