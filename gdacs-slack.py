@@ -11,17 +11,9 @@ Deduplication key: (event_id, alert_level)
   - If an existing event escalates from orange to red, it is posted again.
   - If an event is unchanged (same event_id, same alert_level), it is skipped.
 
-Modes:
-  --initial   Fetch all orange/red alerts from 2026-01-01 to today.
-              Triggered via workflow_dispatch with initial_run=true.
-  (default)   Nightly run -- makes TWO API calls:
-                1. Events whose fromdate falls within the last LOOKBACK_DAYS.
-                   Catches brand-new disasters.
-                2. Events going back up to EVENTS_WINDOW_DAYS, filtered
-                   client-side to those whose datemodified falls within the
-                   last LOOKBACK_DAYS. Catches ongoing disasters whose alert
-                   level was recently upgraded.
-              Results are merged by event_id before processing.
+Both the initial run and the nightly run query from INITIAL_FROM_DATE to today.
+Date filtering is never used to decide what to post -- only the posted_events.json
+record determines whether an event has already been sent to Slack.
 """
 
 import json
@@ -29,7 +21,7 @@ import os
 import re
 import sys
 import requests
-from datetime import date, timedelta
+from datetime import date
 
 # -- Configuration -------------------------------------------------------------
 
@@ -37,16 +29,9 @@ POSTED_EVENTS_FILE = "posted_events.json"
 GDACS_API_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH"
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 
+# All runs query from this date forward. Covers the full history of interest
+# and ensures no event is ever missed due to a date window being too narrow.
 INITIAL_FROM_DATE = "2026-01-01"
-
-# Nightly run: how recent a fromdate or datemodified must be to qualify.
-# An event is a candidate if EITHER date falls within this window.
-LOOKBACK_DAYS = 5
-
-# Nightly run: how far back to query the GDACS API when checking for recently
-# modified events. Disasters can stay active for weeks or months, so this window
-# needs to be wide enough to retrieve any event that might have been upgraded.
-EVENTS_WINDOW_DAYS = 180
 
 ALERT_LEVELS = {"orange", "red"}
 
@@ -123,57 +108,10 @@ def fetch_gdacs_events(from_date: str, to_date: str) -> list:
     return all_features
 
 
-def fetch_nightly_events(today: str) -> list:
-    """
-    Make two GDACS API calls for the nightly run and merge results by event_id.
-
-    Pass 1 - new events:
-        fromdate = today - LOOKBACK_DAYS
-        Catches disasters that started recently.
-
-    Pass 2 - recently modified events:
-        fromdate = today - EVENTS_WINDOW_DAYS, filtered client-side to
-        events whose datemodified >= today - LOOKBACK_DAYS.
-        Catches older ongoing disasters whose alert level was just upgraded.
-    """
-    cutoff_str = (date.today() - timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
-    window_str = (date.today() - timedelta(days=EVENTS_WINDOW_DAYS)).strftime("%Y-%m-%d")
-
-    # Pass 1: events whose fromdate is within the last LOOKBACK_DAYS
-    print(f"[gdacs] Pass 1 -- events with fromdate >= {cutoff_str}")
-    new_features = fetch_gdacs_events(cutoff_str, today)
-
-    # Pass 2: events going back EVENTS_WINDOW_DAYS, then filter by datemodified
-    print(f"[gdacs] Pass 2 -- events modified since {cutoff_str} (querying back to {window_str})")
-    window_features = fetch_gdacs_events(window_str, today)
-
-    recently_modified = [
-        f for f in window_features
-        if (f.get("properties", {}).get("datemodified", "") or "") >= cutoff_str
-    ]
-    print(
-        f"[gdacs] Pass 2 filtered to {len(recently_modified)} events "
-        f"with datemodified >= {cutoff_str}"
-    )
-
-    # Merge both passes, deduplicating by event_id (Pass 1 takes precedence)
-    seen_ids: set = set()
-    combined: list = []
-    for feature in new_features + recently_modified:
-        eid = str(feature.get("properties", {}).get("eventid", ""))
-        if eid and eid not in seen_ids:
-            seen_ids.add(eid)
-            combined.append(feature)
-
-    print(f"[gdacs] Combined unique events to process: {len(combined)}")
-    return combined
-
-
 def parse_event(feature: dict) -> dict:
     """Extract and normalise relevant fields from a GDACS GeoJSON feature."""
     props = feature.get("properties", {})
 
-    # Build a clean description -- prefer plain text, fall back to stripping HTML
     description = props.get("description") or strip_html(props.get("htmldescription", ""))
 
     return {
@@ -213,22 +151,21 @@ def post_to_slack(event: dict) -> None:
 # -- Main ----------------------------------------------------------------------
 
 def main() -> None:
+    today = date.today().strftime("%Y-%m-%d")
+
     initial_run = (
         "--initial" in sys.argv
         or os.environ.get("INITIAL_RUN", "").lower() == "true"
     )
 
-    today = date.today().strftime("%Y-%m-%d")
-
     if initial_run:
         print(f"[run] INITIAL RUN -- fetching all orange/red alerts from {INITIAL_FROM_DATE} to {today}")
-        features = fetch_gdacs_events(INITIAL_FROM_DATE, today)
     else:
-        print(
-            f"[run] Nightly run -- checking fromdate and datemodified "
-            f"within last {LOOKBACK_DAYS} days"
-        )
-        features = fetch_nightly_events(today)
+        print(f"[run] Nightly run -- fetching all orange/red alerts from {INITIAL_FROM_DATE} to {today}")
+
+    # Both modes query the same full date range.
+    # posted_events.json is the sole source of truth for what has already been posted.
+    features = fetch_gdacs_events(INITIAL_FROM_DATE, today)
 
     # Load previously posted events and build a fast-lookup set of posted keys
     posted_events = load_posted_events()
@@ -254,15 +191,14 @@ def main() -> None:
         key = posted_key(event["event_id"], event["alert_level"])
 
         if key in posted_keys:
-            # Already posted this event at this exact alert level -- no action needed
+            # Already posted this event at this exact alert level -- skip
             skipped_count += 1
             continue
 
-        # This is either a brand-new event, or an escalation (orange -> red)
+        # New event, or an escalation from orange to red
         try:
             post_to_slack(event)
 
-            # Record the posting with all tracked fields
             record = {
                 "event_id":     event["event_id"],
                 "alert_level":  event["alert_level"],
@@ -288,7 +224,7 @@ def main() -> None:
                 file=sys.stderr,
             )
 
-    # Always save, even if nothing new was posted (file must exist for git commit)
+    # Always save so the file is always present for the git commit step
     save_posted_events(posted_events)
 
     print(
