@@ -200,6 +200,7 @@ def main() -> None:
         try:
             post_to_slack(event)
             time.sleep(1)  # stay within Slack's ~1 message/sec rate limit
+
             record = {
                 "event_id":     event["event_id"],
                 "alert_level":  event["alert_level"],
@@ -235,7 +236,10 @@ def main() -> None:
     )
 
     if error_count > 0:
-        sys.exit(1)
+        print(
+            f"[warn] {error_count} event(s) failed to post and will be retried on the next run.",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":
