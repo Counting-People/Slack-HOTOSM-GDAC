@@ -38,5 +38,155 @@
     "todate": "2026-03-31T01:00:00",
     "datemodified": "2026-05-12T12:15:20",
     "posted_at": "2026-05-16"
+  },
+  {
+    "event_id": "1000140",
+    "alert_level": "Orange",
+    "event_name": "Eruption  Dukono",
+    "country": "Indonesia",
+    "fromdate": "2026-05-08T09:10:00",
+    "todate": "2026-05-08T09:10:00",
+    "datemodified": "2026-05-08T08:00:42",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1536386",
+    "alert_level": "Orange",
+    "event_name": "Earthquake in Japan",
+    "country": "Japan",
+    "fromdate": "2026-04-20T07:53:00",
+    "todate": "2026-04-20T07:53:00",
+    "datemodified": "2026-04-21T09:01:16",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1001270",
+    "alert_level": "Red",
+    "event_name": "Tropical Cyclone SINLAKU-26",
+    "country": "Northern Mariana Islands, Guam",
+    "fromdate": "2026-04-09T00:00:00",
+    "todate": "2026-04-19T18:00:00",
+    "datemodified": "2026-04-29T06:55:19",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1103815",
+    "alert_level": "Orange",
+    "event_name": "Flood in Afghanistan",
+    "country": "Afghanistan",
+    "fromdate": "2026-03-25T01:00:00",
+    "todate": "2026-04-14T01:00:00",
+    "datemodified": "2026-04-08T15:01:29",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1017863",
+    "alert_level": "Orange",
+    "event_name": "Drought in Kenya, Somalia",
+    "country": "Kenya, Somalia",
+    "fromdate": "2025-05-21T00:00:00",
+    "todate": "2026-03-30T00:00:00",
+    "datemodified": "2026-04-30T13:07:05",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1000138",
+    "alert_level": "Orange",
+    "event_name": "Eruption  Kanlaon",
+    "country": "Philippines",
+    "fromdate": "2026-03-15T10:54:00",
+    "todate": "2026-03-15T10:54:00",
+    "datemodified": "2026-03-16T08:06:16.423",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1103798",
+    "alert_level": "Orange",
+    "event_name": "Flood in Ethiopia",
+    "country": "Ethiopia",
+    "fromdate": "2026-03-09T01:00:00",
+    "todate": "2026-03-11T01:00:00",
+    "datemodified": "2026-03-18T23:57:06",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1103784",
+    "alert_level": "Orange",
+    "event_name": "Flood in Democratic Republic of Congo",
+    "country": "Democratic Republic of Congo",
+    "fromdate": "2026-02-11T01:00:00",
+    "todate": "2026-03-05T01:00:00",
+    "datemodified": "2026-04-10T05:40:34",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1526507",
+    "alert_level": "Orange",
+    "event_name": "Earthquake in Bangladesh",
+    "country": "Bangladesh",
+    "fromdate": "2026-02-27T07:52:24",
+    "todate": "2026-02-27T07:52:24",
+    "datemodified": "2026-04-15T15:14:42",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1001256",
+    "alert_level": "Red",
+    "event_name": "Tropical Cyclone GEZANI-26",
+    "country": "Madagascar, Mozambique",
+    "fromdate": "2026-02-06T00:00:00",
+    "todate": "2026-02-18T12:00:00",
+    "datemodified": "2026-04-13T08:05:55",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1001254",
+    "alert_level": "Orange",
+    "event_name": "Tropical Cyclone FYTIA-26",
+    "country": "Madagascar",
+    "fromdate": "2026-01-29T12:00:00",
+    "todate": "2026-02-04T06:00:00",
+    "datemodified": "2026-02-11T15:18:59.037",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1103694",
+    "alert_level": "Orange",
+    "event_name": "Flood in Mozambique",
+    "country": "Mozambique",
+    "fromdate": "2025-12-22T01:00:00",
+    "todate": "2026-01-26T01:00:00",
+    "datemodified": "2026-02-20T14:05:16",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1027016",
+    "alert_level": "Orange",
+    "event_name": "Forest fires in Chile",
+    "country": "Chile",
+    "fromdate": "2026-01-17T00:00:00",
+    "todate": "2026-01-25T00:00:00",
+    "datemodified": "2026-02-11T12:10:14.497",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1103735",
+    "alert_level": "Orange",
+    "event_name": "Flood in Mozambique, South Africa, Zimbabwe",
+    "country": "Mozambique, South Africa, Zimbabwe",
+    "fromdate": "2026-01-19T12:00:00",
+    "todate": "2026-01-19T12:00:00",
+    "datemodified": "2026-01-27T10:16:29",
+    "posted_at": "2026-05-18"
+  },
+  {
+    "event_id": "1103633",
+    "alert_level": "Orange",
+    "event_name": "Flood in Indonesia",
+    "country": "Indonesia",
+    "fromdate": "2025-11-17T01:00:00",
+    "todate": "2026-01-03T01:00:00",
+    "datemodified": "2026-02-11T12:10:14.497",
+    "posted_at": "2026-05-18"
   }
 ]
