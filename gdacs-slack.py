@@ -124,6 +124,7 @@ def parse_event(feature: dict) -> dict:
         "fromdate":     props.get("fromdate", ""),
         "todate":       props.get("todate", ""),
         "datemodified": props.get("datemodified", ""),
+        "event_url":    f"https://www.gdacs.org/report.aspx?eventtype={props.get('eventtype', '')}&eventid={props.get('eventid', '')}",  # <-- new
     }
 
 
@@ -143,6 +144,7 @@ def post_to_slack(event: dict) -> None:
         "description": event["description"],
         "event_id":    event["event_id"],
         "alert_level": f"{emoji} {event['alert_level']}",
+        "event_url":   event["event_url"],   # <-- new field
     }
 
     response = requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=15)
