@@ -218,5 +218,15 @@
     "todate": "2026-06-16T03:27:44",
     "datemodified": "2026-06-16T04:05:23",
     "posted_at": "2026-06-16"
+  },
+  {
+    "event_id": "1546719",
+    "alert_level": "Orange",
+    "event_name": "Earthquake in China",
+    "country": "China",
+    "fromdate": "2026-06-16T09:06:55",
+    "todate": "2026-06-16T09:06:55",
+    "datemodified": "2026-06-16T11:35:17",
+    "posted_at": "2026-06-17"
   }
 ]
