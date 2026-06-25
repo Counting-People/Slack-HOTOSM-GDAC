@@ -228,5 +228,15 @@
     "todate": "2026-06-16T09:06:55",
     "datemodified": "2026-06-16T11:35:17",
     "posted_at": "2026-06-17"
+  },
+  {
+    "event_id": "1548377",
+    "alert_level": "Red",
+    "event_name": "Earthquake in Venezuela",
+    "country": "Venezuela",
+    "fromdate": "2026-06-24T22:05:12",
+    "todate": "2026-06-24T22:05:12",
+    "datemodified": "2026-06-25T04:01:09",
+    "posted_at": "2026-06-25"
   }
 ]
