@@ -248,5 +248,15 @@
     "todate": "2026-06-24T22:04:32",
     "datemodified": "2026-06-25T23:01:12",
     "posted_at": "2026-06-26"
+  },
+  {
+    "event_id": "1548668",
+    "alert_level": "Orange",
+    "event_name": "Earthquake in Philippines",
+    "country": "Philippines",
+    "fromdate": "2026-06-26T11:34:41",
+    "todate": "2026-06-26T11:34:41",
+    "datemodified": "2026-06-26T14:04:49",
+    "posted_at": "2026-06-27"
   }
 ]
