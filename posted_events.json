@@ -258,5 +258,15 @@
     "todate": "2026-06-26T11:34:41",
     "datemodified": "2026-06-26T14:04:49",
     "posted_at": "2026-06-27"
+  },
+  {
+    "event_id": "1001279",
+    "alert_level": "Orange",
+    "event_name": "Tropical Cyclone NINE-26",
+    "country": "Northern Mariana Islands",
+    "fromdate": "2026-07-01T00:00:00",
+    "todate": "2026-07-01T00:00:00",
+    "datemodified": "2026-07-01T03:50:10",
+    "posted_at": "2026-07-01"
   }
 ]
