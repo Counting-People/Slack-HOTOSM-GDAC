@@ -268,5 +268,25 @@
     "todate": "2026-07-01T00:00:00",
     "datemodified": "2026-07-01T03:50:10",
     "posted_at": "2026-07-01"
+  },
+  {
+    "event_id": "1001281",
+    "alert_level": "Orange",
+    "event_name": "Tropical Cyclone MAYSAK-26",
+    "country": "Viet Nam, China, Laos",
+    "fromdate": "2026-07-01T18:00:00",
+    "todate": "2026-07-04T00:00:00",
+    "datemodified": "2026-07-04T03:35:10",
+    "posted_at": "2026-07-04"
+  },
+  {
+    "event_id": "1001279",
+    "alert_level": "Red",
+    "event_name": "Tropical Cyclone BAVI-26",
+    "country": "Northern Mariana Islands, Guam",
+    "fromdate": "2026-07-01T00:00:00",
+    "todate": "2026-07-04T00:00:00",
+    "datemodified": "2026-07-04T03:50:12",
+    "posted_at": "2026-07-04"
   }
 ]
