@@ -338,5 +338,35 @@
     "todate": "2026-07-11T00:00:00",
     "datemodified": "2026-07-14T15:03:52",
     "posted_at": "2026-07-15"
+  },
+  {
+    "event_id": "1027450",
+    "alert_level": "Orange",
+    "event_name": "Drought in Ethiopia, Kenya, Somalia",
+    "country": "Ethiopia, Kenya, Somalia",
+    "fromdate": "2026-04-21T00:00:00",
+    "todate": "2026-07-16T10:17:54",
+    "datemodified": "2026-07-16T11:01:48",
+    "posted_at": "2026-07-17"
+  },
+  {
+    "event_id": "1018332",
+    "alert_level": "Orange",
+    "event_name": "Drought in Albania, Austria, Bosnia  and  Herzegovina, Bulgaria, Belarus, Switzerland, Czech Republic, Germany, Denmark, Spain, France, Croatia, Hungary, Italy, Liechtenstein, Monaco, Montenegro, The Republic of North Macedonia, Poland, Romania, Serbia, Russia, Sweden, Slovakia, San Marino, Ukraine, , ",
+    "country": "Albania, Austria, Bosnia & Herzegovina, Bulgaria, Belarus, Switzerland, Czech Republic, Germany, Denmark, Spain, France, Croatia, Hungary, Italy, Liechtenstein, Monaco, Montenegro, The Republic of North Macedonia, Poland, Romania, Serbia, Russia, Sweden, Slovakia, San Marino, Ukraine, , ",
+    "fromdate": "2025-12-11T00:00:00",
+    "todate": "2026-07-16T10:17:29",
+    "datemodified": "2026-07-16T11:01:47",
+    "posted_at": "2026-07-17"
+  },
+  {
+    "event_id": "1000144",
+    "alert_level": "Orange",
+    "event_name": "Eruption  Mayon",
+    "country": "Philippines",
+    "fromdate": "2026-07-16T01:59:00",
+    "todate": "2026-07-16T01:59:00",
+    "datemodified": "2026-07-16T08:01:21",
+    "posted_at": "2026-07-17"
   }
 ]
