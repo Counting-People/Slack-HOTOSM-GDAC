@@ -368,5 +368,15 @@
     "todate": "2026-07-16T01:59:00",
     "datemodified": "2026-07-16T08:01:21",
     "posted_at": "2026-07-17"
+  },
+  {
+    "event_id": "1552752",
+    "alert_level": "Orange",
+    "event_name": "Earthquake in Peru",
+    "country": "Peru",
+    "fromdate": "2026-07-19T02:24:36",
+    "todate": "2026-07-19T02:24:36",
+    "datemodified": "2026-07-19T02:54:15",
+    "posted_at": "2026-07-19"
   }
 ]
