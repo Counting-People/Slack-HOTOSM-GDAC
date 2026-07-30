@@ -104,8 +104,15 @@ def main():
     # OData-style {"value": [...]} wrapper. Handle both just in case.
     items = data if isinstance(data, list) else data.get('value', [])
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
+    # --- TEMPORARY DEBUG: remove once real data is confirmed flowing ---
+    print(f"DEBUG: type(data) = {type(data)}")
+    print(f"DEBUG: total items received = {len(items)}")
+    if items:
+        print(f"DEBUG: first item keys = {list(items[0].keys())}")
+        print(f"DEBUG: first item sample = {json.dumps(items[0], default=str)[:1000]}")
+    # --- END TEMPORARY DEBUG ---
 
+    cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
     recent_items = []
     for item in items:
         pub_str = item.get('PublicationDateAndTime') or item.get('PublicationDate')
