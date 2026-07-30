@@ -93,37 +93,105 @@ def post_to_slack(item):
     return r.status_code
 
 
-def main():
-    resp = requests.get(API_URL, timeout=30)
-    if resp.status_code != 200:
-        print(f"WHO API error: {resp.status_code}")
-        return
+def fetch_all_recent_items(cutoff):
+    """
+    The WHO API defaults to returning the OLDEST records first, paginated
+    at ~50 per page. We request newest-first via $orderby and page through
+    until we hit items older than our cutoff.
 
-    data = resp.json()
-    # WHO's API returns a raw JSON array (per their own API docs), not an
-    # OData-style {"value": [...]} wrapper. Handle both just in case.
-    items = data if isinstance(data, list) else data.get('value', [])
+    Fallback: some OData-style endpoints silently ignore $orderby. If the
+    very first item we get back is still ancient (well past the cutoff),
+    we instead fetch the total record count and jump straight to the last
+    page, which will hold the newest records under the default (ascending)
+    ordering.
+    """
+    def get_page(params):
+        resp = requests.get(API_URL, params=params, timeout=30)
+        if resp.status_code != 200:
+            print(f"WHO API error: {resp.status_code}")
+            return None
+        data = resp.json()
+        return data if isinstance(data, list) else data.get('value', [])
 
-    # --- TEMPORARY DEBUG: remove once real data is confirmed flowing ---
-    print(f"DEBUG: type(data) = {type(data)}")
-    print(f"DEBUG: total items received = {len(items)}")
-    if items:
-        print(f"DEBUG: first item keys = {list(items[0].keys())}")
-        print(f"DEBUG: first item sample = {json.dumps(items[0], default=str)[:1000]}")
-    # --- END TEMPORARY DEBUG ---
-
-    cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
-    recent_items = []
-    for item in items:
+    def parse_date(item):
         pub_str = item.get('PublicationDateAndTime') or item.get('PublicationDate')
         if not pub_str:
-            continue
+            return None
         try:
-            pub_dt = datetime.fromisoformat(pub_str.replace('Z', '+00:00'))
+            return datetime.fromisoformat(pub_str.replace('Z', '+00:00'))
         except ValueError:
-            continue
-        if pub_dt >= cutoff:
-            recent_items.append(item)
+            return None
+
+    page_size = 100
+
+    # First attempt: request newest-first directly.
+    first_page = get_page({'$orderby': 'PublicationDate desc', '$top': page_size, '$skip': 0})
+    if first_page is None:
+        return []
+
+    if first_page:
+        first_date = parse_date(first_page[0])
+        print(f"DEBUG: first item date with $orderby = {first_date}")
+
+        if first_date and first_date >= cutoff:
+            # $orderby worked as expected — page forward normally.
+            recent_items = []
+            skip = 0
+            items = first_page
+            while items:
+                hit_old_item = False
+                for item in items:
+                    d = parse_date(item)
+                    if d is None:
+                        continue
+                    if d >= cutoff:
+                        recent_items.append(item)
+                    else:
+                        hit_old_item = True
+                if hit_old_item or len(items) < page_size:
+                    break
+                skip += page_size
+                items = get_page({'$orderby': 'PublicationDate desc', '$top': page_size, '$skip': skip})
+                if items is None:
+                    break
+            return recent_items
+
+    # Fallback: $orderby was ignored (or had no effect) — get total count
+    # and jump to the final page(s), where the newest records live under
+    # the default ascending order.
+    print("DEBUG: $orderby did not return recent-first results, falling back to count+skip")
+    count_resp = requests.get(f"{API_URL}/$count", timeout=30)
+    if count_resp.status_code != 200:
+        print(f"DEBUG: could not get total count, status {count_resp.status_code}")
+        return []
+    try:
+        total_count = int(count_resp.text.strip())
+    except ValueError:
+        print(f"DEBUG: unexpected $count response: {count_resp.text[:200]}")
+        return []
+    print(f"DEBUG: total records in WHO DON dataset = {total_count}")
+
+    recent_items = []
+    skip = max(0, total_count - page_size)
+    while True:
+        items = get_page({'$top': page_size, '$skip': skip})
+        if not items:
+            break
+        for item in items:
+            d = parse_date(item)
+            if d and d >= cutoff:
+                recent_items.append(item)
+        if skip == 0:
+            break
+        skip = max(0, skip - page_size)
+
+    return recent_items
+
+
+def main():
+    cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
+    recent_items = fetch_all_recent_items(cutoff)
+    print(f"DEBUG: total recent items fetched = {len(recent_items)}")
 
     posted_ids = load_posted_ids()
     new_count = 0
