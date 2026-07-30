@@ -21,9 +21,7 @@ STATE_FILE = 'posted_dons.json'
 
 # Only look at DONs published in the last N days, to avoid re-scanning
 # the entire historical archive (which goes back to 1996) every run.
-# TEMPORARY: 210 days covers back to January 1, 2026, for initial testing.
-# Reset to 30 once the test run looks correct.
-LOOKBACK_DAYS = 210
+LOOKBACK_DAYS = 30
 
 
 def load_posted_ids():
@@ -58,6 +56,7 @@ def build_don_url(item):
     if default_url.startswith('/'):
         return f'https://www.who.int{default_url}'
     return 'https://www.who.int/emergencies/disease-outbreak-news'
+
 
 def post_to_slack(item):
     title = item.get('OverrideTitle') or item.get('Title') or 'Untitled DON'
@@ -132,7 +131,6 @@ def fetch_all_recent_items(cutoff):
 
     if first_page:
         first_date = parse_date(first_page[0])
-        print(f"DEBUG: first item date with $orderby = {first_date}")
 
         if first_date and first_date >= cutoff:
             # $orderby worked as expected — page forward normally.
@@ -160,17 +158,15 @@ def fetch_all_recent_items(cutoff):
     # Fallback: $orderby was ignored (or had no effect) — get total count
     # and jump to the final page(s), where the newest records live under
     # the default ascending order.
-    print("DEBUG: $orderby did not return recent-first results, falling back to count+skip")
     count_resp = requests.get(f"{API_URL}/$count", timeout=30)
     if count_resp.status_code != 200:
-        print(f"DEBUG: could not get total count, status {count_resp.status_code}")
+        print(f"WHO API error: could not get total count, status {count_resp.status_code}")
         return []
     try:
         total_count = int(count_resp.text.strip())
     except ValueError:
-        print(f"DEBUG: unexpected $count response: {count_resp.text[:200]}")
+        print(f"WHO API error: unexpected $count response: {count_resp.text[:200]}")
         return []
-    print(f"DEBUG: total records in WHO DON dataset = {total_count}")
 
     recent_items = []
     skip = max(0, total_count - page_size)
@@ -192,7 +188,6 @@ def fetch_all_recent_items(cutoff):
 def main():
     cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
     recent_items = fetch_all_recent_items(cutoff)
-    print(f"DEBUG: total recent items fetched = {len(recent_items)}")
 
     posted_ids = load_posted_ids()
     new_count = 0
