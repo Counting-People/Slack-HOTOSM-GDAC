@@ -73,14 +73,13 @@ def post_to_slack(item):
     # (some cover a region or multiple countries), so those two get a
     # WHO-specific placeholder / blank instead.
     payload = {
-        "event_name":  title,
+        "event_name":  f"{pub_date} \u2014 {title}",
         "country":     "",  # DONs don't have a consistent single-country field
-        "description": f"{pub_date} \u2014 {summary}",
+        "description": summary,
         "event_id":    don_id,
         "alert_level": ":large_blue_circle: WHO Disease Outbreak News",
         "event_url":   don_url,
     }
-
     if DRY_RUN:
         print("--- DRY RUN: would post ---")
         print(json.dumps(payload, indent=2))
