@@ -49,14 +49,15 @@ def strip_html(html):
 
 
 def build_don_url(item):
+    url_name = item.get('UrlName', '')
+    if url_name:
+        return f'https://www.who.int/emergencies/disease-outbreak-news/item/{url_name}'
     default_url = item.get('ItemDefaultUrl', '')
     if default_url.startswith('http'):
         return default_url
     if default_url.startswith('/'):
         return f'https://www.who.int{default_url}'
-    url_name = item.get('UrlName', '')
-    return f'https://www.who.int/emergencies/disease-outbreak-news/item/{url_name}'
-
+    return 'https://www.who.int/emergencies/disease-outbreak-news'
 
 def post_to_slack(item):
     title = item.get('OverrideTitle') or item.get('Title') or 'Untitled DON'
