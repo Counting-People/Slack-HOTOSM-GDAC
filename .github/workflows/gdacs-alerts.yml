@@ -3,7 +3,7 @@ name: Disaster & Outbreak Alerts
 on:
   schedule:
     - cron: '1 0 * * *'   # 00:01 UTC daily
-workflow_dispatch:
+  workflow_dispatch:
     inputs:
       dry_run:
         description: 'WHO DON dry run (preview only, no Slack post)'
@@ -17,7 +17,7 @@ workflow_dispatch:
         description: 'WHO DON cutoff date, e.g. 2026-01-01 (overrides lookback_days if set)'
         type: string
         default: ''
-        
+
 permissions:
   contents: write
 
@@ -47,6 +47,7 @@ jobs:
           LOOKBACK_DAYS: ${{ inputs.lookback_days }}
           START_DATE: ${{ inputs.start_date }}
         run: python who-don-slack.py
+
       - name: Commit updated state files
         if: always()
         run: |
