@@ -135,19 +135,15 @@ def fetch_all_recent_items(cutoff):
     first_page = get_page({'$orderby': 'PublicationDate desc', '$top': page_size, '$skip': 0})
     if first_page is None:
         return []
-    print(f"DEBUG: first_page length = {len(first_page)}")
 
     if first_page:
         first_date = parse_date(first_page[0])
-        print(f"DEBUG: first item date = {first_date}, cutoff = {cutoff}")
 
         if first_date and first_date >= cutoff:
-            print("DEBUG: using $orderby forward-paging path")
             # $orderby worked as expected — page forward normally.
             recent_items = []
             skip = 0
             items = first_page
-            page_num = 1
             while items:
                 hit_old_item = False
                 for item in items:
@@ -158,11 +154,9 @@ def fetch_all_recent_items(cutoff):
                         recent_items.append(item)
                     else:
                         hit_old_item = True
-                print(f"DEBUG: page {page_num} had {len(items)} items, running recent_items total = {len(recent_items)}, hit_old_item = {hit_old_item}")
                 if hit_old_item or len(items) < page_size:
                     break
                 skip += page_size
-                page_num += 1
                 items = get_page({'$orderby': 'PublicationDate desc', '$top': page_size, '$skip': skip})
                 if items is None:
                     break
@@ -200,7 +194,6 @@ def fetch_all_recent_items(cutoff):
 
 def main():
     cutoff = CUTOFF_DATE if CUTOFF_DATE else datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
-    print(f"DEBUG: START_DATE env = '{os.environ.get('START_DATE', '')}', LOOKBACK_DAYS env = '{os.environ.get('LOOKBACK_DAYS', '')}', computed cutoff = {cutoff}")
     recent_items = fetch_all_recent_items(cutoff)
 
     posted_ids = load_posted_ids()
