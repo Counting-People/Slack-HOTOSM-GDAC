@@ -48,10 +48,19 @@ def strip_html(html):
     return text
 
 
+def build_don_url(item):
+    default_url = item.get('ItemDefaultUrl', '')
+    if default_url.startswith('http'):
+        return default_url
+    if default_url.startswith('/'):
+        return f'https://www.who.int{default_url}'
+    url_name = item.get('UrlName', '')
+    return f'https://www.who.int/emergencies/disease-outbreak-news/item/{url_name}'
+
+
 def post_to_slack(item):
     title = item.get('OverrideTitle') or item.get('Title') or 'Untitled DON'
-    url_name = item.get('UrlName', '')
-    don_url = f'https://www.who.int/emergencies/disease-outbreak-news/item/{url_name}'
+    don_url = build_don_url(item)
     pub_date = item.get('PublicationDateAndTime', item.get('PublicationDate', ''))[:10]
     summary = strip_html(item.get('Summary') or item.get('Overview', ''))[:300]
     if len(summary) == 300:
@@ -91,7 +100,9 @@ def main():
         return
 
     data = resp.json()
-    items = data.get('value', [])
+    # WHO's API returns a raw JSON array (per their own API docs), not an
+    # OData-style {"value": [...]} wrapper. Handle both just in case.
+    items = data if isinstance(data, list) else data.get('value', [])
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
 
