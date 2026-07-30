@@ -19,9 +19,16 @@ STATE_FILE = 'posted_dons.json'
 # no way to set a custom color bar like WHO's brand blue (#009EDB) here.
 # The closest available substitute is the blue circle emoji below.
 
-# Only look at DONs published in the last N days, to avoid re-scanning
-# the entire historical archive (which goes back to 1996) every run.
-LOOKBACK_DAYS = 30
+# Only look at DONs published after this cutoff. Two ways to control it:
+#   - START_DATE env var: an actual calendar date, e.g. "2026-01-01"
+#     (takes priority if set — no need to calculate day-counts)
+#   - LOOKBACK_DAYS env var: a rolling N-days-back window (default 30)
+_start_date_str = os.environ.get('START_DATE', '').strip()
+if _start_date_str:
+    CUTOFF_DATE = datetime.fromisoformat(_start_date_str).replace(tzinfo=timezone.utc)
+else:
+    LOOKBACK_DAYS = int(os.environ.get('LOOKBACK_DAYS', '30'))
+    CUTOFF_DATE = None  # computed fresh at run time in main() from LOOKBACK_DAYS
 
 
 def load_posted_ids():
@@ -80,6 +87,7 @@ def post_to_slack(item):
         "alert_level": ":large_blue_circle: WHO Disease Outbreak News",
         "event_url":   don_url,
     }
+
     if DRY_RUN:
         print("--- DRY RUN: would post ---")
         print(json.dumps(payload, indent=2))
@@ -127,15 +135,19 @@ def fetch_all_recent_items(cutoff):
     first_page = get_page({'$orderby': 'PublicationDate desc', '$top': page_size, '$skip': 0})
     if first_page is None:
         return []
+    print(f"DEBUG: first_page length = {len(first_page)}")
 
     if first_page:
         first_date = parse_date(first_page[0])
+        print(f"DEBUG: first item date = {first_date}, cutoff = {cutoff}")
 
         if first_date and first_date >= cutoff:
+            print("DEBUG: using $orderby forward-paging path")
             # $orderby worked as expected — page forward normally.
             recent_items = []
             skip = 0
             items = first_page
+            page_num = 1
             while items:
                 hit_old_item = False
                 for item in items:
@@ -146,9 +158,11 @@ def fetch_all_recent_items(cutoff):
                         recent_items.append(item)
                     else:
                         hit_old_item = True
+                print(f"DEBUG: page {page_num} had {len(items)} items, running recent_items total = {len(recent_items)}, hit_old_item = {hit_old_item}")
                 if hit_old_item or len(items) < page_size:
                     break
                 skip += page_size
+                page_num += 1
                 items = get_page({'$orderby': 'PublicationDate desc', '$top': page_size, '$skip': skip})
                 if items is None:
                     break
@@ -185,7 +199,8 @@ def fetch_all_recent_items(cutoff):
 
 
 def main():
-    cutoff = datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
+    cutoff = CUTOFF_DATE if CUTOFF_DATE else datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)
+    print(f"DEBUG: START_DATE env = '{os.environ.get('START_DATE', '')}', LOOKBACK_DAYS env = '{os.environ.get('LOOKBACK_DAYS', '')}', computed cutoff = {cutoff}")
     recent_items = fetch_all_recent_items(cutoff)
 
     posted_ids = load_posted_ids()
