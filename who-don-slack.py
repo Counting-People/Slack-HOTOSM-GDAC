@@ -27,9 +27,9 @@ _start_date_str = os.environ.get('START_DATE', '').strip()
 if _start_date_str:
     CUTOFF_DATE = datetime.fromisoformat(_start_date_str).replace(tzinfo=timezone.utc)
 else:
-    LOOKBACK_DAYS = int(os.environ.get('LOOKBACK_DAYS', '30'))
+    _lookback_str = os.environ.get('LOOKBACK_DAYS', '').strip()
+    LOOKBACK_DAYS = int(_lookback_str) if _lookback_str else 30
     CUTOFF_DATE = None  # computed fresh at run time in main() from LOOKBACK_DAYS
-
 
 def load_posted_ids():
     try:
