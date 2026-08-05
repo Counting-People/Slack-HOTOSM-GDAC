@@ -488,5 +488,35 @@
     "todate": "2026-08-01T00:00:00",
     "datemodified": "2026-08-04T03:25:16",
     "posted_at": "2026-08-04"
+  },
+  {
+    "event_id": "1001297",
+    "alert_level": "Orange",
+    "event_name": "Tropical Cyclone DOLPHIN-26",
+    "country": "Marshall Islands, Japan, China",
+    "fromdate": "2026-07-27T00:00:00",
+    "todate": "2026-08-05T00:00:00",
+    "datemodified": "2026-08-05T03:08:33",
+    "posted_at": "2026-08-05"
+  },
+  {
+    "event_id": "1027465",
+    "alert_level": "Orange",
+    "event_name": "Drought in Democratic Republic of Congo, Kenya, Tanzania, Uganda",
+    "country": "Democratic Republic of Congo, Kenya, Tanzania, Uganda",
+    "fromdate": "2026-05-21T00:00:00",
+    "todate": "2026-08-04T12:47:47",
+    "datemodified": "2026-08-04T13:02:44",
+    "posted_at": "2026-08-05"
+  },
+  {
+    "event_id": "1029987",
+    "alert_level": "Orange",
+    "event_name": "Forest fires in Greece",
+    "country": "Greece",
+    "fromdate": "2026-07-31T00:00:00",
+    "todate": "2026-08-04T00:00:00",
+    "datemodified": "2026-08-05T03:04:00",
+    "posted_at": "2026-08-05"
   }
 ]
