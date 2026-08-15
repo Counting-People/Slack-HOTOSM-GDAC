@@ -568,5 +568,15 @@
     "todate": "2026-08-10T12:34:28",
     "datemodified": "2026-08-12T02:30:15",
     "posted_at": "2026-08-12"
+  },
+  {
+    "event_id": "1558059",
+    "alert_level": "Red",
+    "event_name": "Earthquake in Indonesia",
+    "country": "Indonesia",
+    "fromdate": "2026-08-14T21:58:21",
+    "todate": "2026-08-14T21:58:21",
+    "datemodified": "2026-08-15T00:05:51",
+    "posted_at": "2026-08-15"
   }
 ]
