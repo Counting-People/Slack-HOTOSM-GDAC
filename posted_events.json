@@ -588,5 +588,25 @@
     "todate": "2026-08-17T09:28:08",
     "datemodified": "2026-08-17T09:28:08",
     "posted_at": "2026-08-18"
+  },
+  {
+    "event_id": "1030534",
+    "alert_level": "Orange",
+    "event_name": "Forest fires in Belgium",
+    "country": "Belgium",
+    "fromdate": "2026-08-14T00:00:00",
+    "todate": "2026-08-17T00:00:00",
+    "datemodified": "2026-08-21T01:45:16",
+    "posted_at": "2026-08-21"
+  },
+  {
+    "event_id": "1030410",
+    "alert_level": "Orange",
+    "event_name": "Forest fires in Spain",
+    "country": "Spain",
+    "fromdate": "2026-08-10T00:00:00",
+    "todate": "2026-08-17T00:00:00",
+    "datemodified": "2026-08-20T23:37:56",
+    "posted_at": "2026-08-21"
   }
 ]
